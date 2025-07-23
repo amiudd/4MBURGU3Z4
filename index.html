@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Lluvia de Hamburguesas</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #2a1a0a;
+      overflow: hidden;
+      touch-action: manipulation;
+      font-family: 'Courier New', monospace;
+    }
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .center-message {
+      color: #e67e22;
+      font-size: clamp(2rem, 8vw, 6rem);
+      text-align: center;
+      opacity: 0.8;
+      text-shadow: 0 0 10px rgba(230, 126, 34, 0.7);
+    }
+    #audio-control {
+      display: none;
+    }
+    .mobile-tap-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 0; width: 100%;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 14px;
+      z-index: 3;
+      pointer-events: none;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div class="overlay">
+    <div class="center-message">HAMBURGUESA🍔</div>
+  </div>
+  <div class="mobile-tap-hint">Toca la pantalla para más hamburguesas</div>
+
+  <audio id="audio-control" loop>
+    <source src="musica.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const dpr = window.devicePixelRatio || 1;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.scale(dpr, dpr);
+
+    const burgerEmojis = ["🍔", "🍔", "🍔", "🍔", "🍔", "🍔", "🍔", "🍔"];
+    let fontSize = Math.min(32, width / 15);
+    ctx.font = `bold ${fontSize}px monospace`;
+
+    const columns = Math.floor(width / (fontSize * 1.5));
+    let drops = new Array(columns).fill(1);
+
+    if (isTouchDevice) drops.length = Math.min(columns, 20);
+
+    const particles = [];
+    const maxParticles = isTouchDevice ? 50 : 100;
+    const frameInterval = 1000 / 60;
+    let lastFrame = 0;
+
+    function drawMatrix() {
+      ctx.fillStyle = "rgba(42, 26, 10, 0.1)";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#e67e22";
+      for (let i = 0; i < drops.length; i++) {
+        const x = i * fontSize * 1.5;
+        const y = drops[i] * fontSize;
+
+        const emoji = burgerEmojis[i % burgerEmojis.length];
+        ctx.fillText(emoji, x, y);
+
+        if (y > height + fontSize) {
+          drops[i] = 0;
+        }
+        drops[i] += 0.5;
+      }
+    }
+
+    function drawParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        ctx.globalAlpha = p.alpha;
+        ctx.font = `bold ${p.size}px monospace`;
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.emoji, p.x, p.y);
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.01;
+        if (p.alpha <= 0) particles.splice(i, 1);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function animate(time) {
+      requestAnimationFrame(animate);
+      if (isTouchDevice && time - lastFrame < frameInterval) return;
+      lastFrame = time;
+      drawMatrix();
+      drawParticles();
+    }
+
+    animate(0);
+
+    function createParticles(x, y) {
+      const count = isTouchDevice ? 8 : 16;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6 - 2,
+          alpha: 1,
+          size: fontSize * (0.8 + Math.random() * 0.8),
+          color: "#e67e22",
+          emoji: burgerEmojis[Math.floor(Math.random() * burgerEmojis.length)]
+        });
+      }
+      if (particles.length > maxParticles)
+        particles.splice(0, particles.length - maxParticles);
+    }
+
+    const handleInteraction = (e) => {
+      const x = isTouchDevice ? e.touches[0].clientX : e.clientX;
+      const y = isTouchDevice ? e.touches[0].clientY : e.clientY;
+      createParticles(x, y);
+    };
+
+    canvas.addEventListener(isTouchDevice ? 'touchstart' : 'click', handleInteraction, { passive: false });
+
+    // Redimensionar
+    window.addEventListener('resize', () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      ctx.scale(dpr, dpr);
+    });
+
+    // Música activada por usuario
+    window.addEventListener('click', () => {
+      const audio = document.getElementById('audio-control');
+      audio.volume = 0.5;
+      audio.play().catch(() => {});
+    }, { once: true });
+
+    // Ocultar texto de hint móvil
+    if (isTouchDevice) {
+      setTimeout(() => {
+        const hint = document.querySelector('.mobile-tap-hint');
+        hint.style.opacity = '0';
+        setTimeout(() => hint.style.display = 'none', 1000);
+      }, 5000);
+    }
+  </script>
+</body>
+</html>
